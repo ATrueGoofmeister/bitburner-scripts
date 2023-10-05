@@ -1,41 +1,58 @@
 import { NS } from "@ns";
+import { Server } from "@ns";
 
-export const filename: string = "manipulate_server.js"
+// todo(al) evaluate how to chose implant by script argument
+export const implant_filename: string = "implants/manipulate_server.js"
+//export const implant_filename: string = "implants/analyze_server.js"
 
-export function copy_manipulation_file(ns: NS, node: string) {
-    if (!ns.fileExists(filename, node)) {
-        ns.print("file '" + filename + " does not exist on node '" + node + "'. Secure copying file...")
-        ns.scp(filename, node, "home")
+function enough_open_ports(server: Server): boolean {
+    return (server.openPortCount !== undefined
+        && server.numOpenPortsRequired !== undefined
+        && (server.openPortCount >= server.numOpenPortsRequired))
+}
+
+function gain_root_access(ns: NS, node: string){
+    let current_server = ns.getServer(node)
+
+    // todo(al) evaluate if programs can be created automatically
+    if(!enough_open_ports(current_server)) {
+        if (!ns.fileExists("BruteSSH.exe")) {
+            ns.print("cannot open ssh ports, BruteSSH.exe does not exist.")
+            return
+        }
+        ns.brutessh(node)
+    }
+
+    if(enough_open_ports(current_server)) {
+        if (!ns.fileExists("NUKE.exe")) {
+            ns.print("cannot gain root access, NUKE.exe does not exist.")
+            return
+        }
+        ns.nuke(node) 
     } else {
-        ns.print("file '" + filename + " does already exist on node '" + node + "'. Doing nothing...")
+        ns.print("could not open enough ports for node '" + node + "' [" + current_server.openPortCount + "/ " + current_server.numOpenPortsRequired + "]")
+    }
+}
+
+export function implant_manipulation_file(ns: NS, node: string){
+    if(!ns.hasRootAccess(node)) {
+        gain_root_access(ns, node)
+    }
+
+    if (ns.hasRootAccess(node)){
+        ns.scp(implant_filename, node, "home")
+        ns.exec(implant_filename, node)
+    } else {
+        ns.print("could not implant manipulation file on node '" + node + "', missing root access.")
     }
 }
 
 export function remove_manipulation_file(ns: NS, node: string) {
-    if (ns.fileExists(filename, node)) {
-        ns.print("file '" + filename  + "' exists on node '"+ node +"'. Deleting...")
-        ns.rm(filename, node)
+    if (ns.fileExists(implant_filename, node)) {
+        ns.print("file '" + implant_filename  + "' exists on node '"+ node +"'. Deleting...")
+        ns.rm(implant_filename, node)
     } else {
-        ns.print("file '" + filename  + "' does not exist on node '"+ node + "'. Doing nothing...")
-    }
-}
-
-export function execute_manipulation_file(ns: NS, node: string) {
-    if (ns.fileExists(filename, node)) {
-        if(!ns.getServer(node).hasAdminRights) {
-            ns.print("cannot access '" + node + "'. Enforcing admin rights...")
-            // todo(al) get those admin rights!
-        }
-        ns.exec(filename, node)
-    } else {
-        ns.print("file '" + filename + " does not exist on node '" + node + "'. Doing nothing...")
-    }
-
-}
-
-export function copy_and_execute_manipulation_file(ns: NS, node: string){
-    if(!ns.hasRootAccess(node)) {
-        // todo(al) get those admin rights!
+        ns.print("file '" + implant_filename  + "' does not exist on node '"+ node + "'. Doing nothing...")
     }
 }
 
